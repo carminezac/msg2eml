@@ -1,0 +1,4 @@
+* text=auto
+*.msg binary
+*.eml -text
+*.sh text eol=lf

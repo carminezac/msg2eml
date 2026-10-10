@@ -1,0 +1,134 @@
+# Operational playbook — MSG → EML conversion
+
+Procedure to convert a `.msg` and measure its fidelity. To be run from the
+project root.
+
+## 0. Service (v0.1)
+
+```bash
+docker compose up -d --build
+curl -f -o out/produced.eml -F "file=@samples/<file>.msg" http://localhost:8080/api/convert
+```
+
+WebUI at `http://localhost:8080/`. The service and the CLI probe use the same
+logic: given the same input they produce the same EML. The following sections
+describe the probe, useful because it prints the fidelity report for the
+single file.
+
+Tests and build without .NET on the host: `./tools/dev.sh test | build | up | down`.
+
+## Prerequisites
+
+- Docker running (verified on 29.3.0), user in the `docker` group;
+- access to `mcr.microsoft.com` and `api.nuget.org` for the first build;
+- Python 3 on the host, only for `compare-eml.py` (uses the stdlib only).
+
+No .NET installation on the host: SDK and runtime live in the image.
+
+## 1. Conversion
+
+```bash
+./tools/oneshot-msgconv/run.sh "samples/<file>.msg"
+```
+
+- output in `out/<file>.eml`; a second argument sets a different path;
+- the first run builds the `msg2eml-oneshot:local` image
+  (multi-stage: `sdk:8.0` to compile, `runtime:8.0` to run);
+- rebuild after a change to `Program.cs` or `msgconv.csproj`:
+
+```bash
+REBUILD=1 ./tools/oneshot-msgconv/run.sh "samples/<file>.msg"
+```
+
+The fidelity report goes to stdout: MAPI properties read, MIME structure
+produced, EML headers, outcome of the re-read and `cid` check.
+
+The container runs with `--read-only --network none --cap-drop ALL
+--security-opt no-new-privileges --tmpfs /tmp`, as the host user, with the
+input directory mounted read-only. The conversion is offline by construction.
+
+## 2. Comparison with a reference
+
+You need an `.eml` of the same mail produced by a trusted client. From Outlook
+Web: open the message → `...` → **Download**.
+
+```bash
+./tools/oneshot-msgconv/compare-eml.py out/outlook-web-reference.eml out/msgconv.eml
+```
+
+It reports, in order: main headers, MIME structure of the two files, body
+(`text/plain` and `text/html`) on three levels — byte-identical, identical
+ignoring whitespace, identical visible text — attachments and images with
+`sha256`, MIME validation with the stdlib parser and `cid` resolution.
+
+Exit code `0` if no differences emerge, `1` otherwise. **The list must be
+read**: some differences are expected (see `03-quality-analysis.md`), so `1`
+does not automatically mean error.
+
+## 3. How to read the outcome
+
+Criteria that must always hold:
+
+| Check | Expected |
+| --- | --- |
+| `From` / `To` / `Cc` / `Subject` / `Date` / `Message-ID` | `OK` |
+| `visible-text` of `text/plain` and `text/html` | `True` |
+| attachments and images | `[OK]`, matching `sha256` |
+| stdlib parser `defects` | `none` |
+| `cid:` referenced in the HTML | all `resolved` |
+| `Content-Transfer-Encoding` on text parts | present |
+
+Acceptable: different but equivalent `alternative`/`related` structure,
+whitespace differences in the HTML, extra `Return-Path`, `<meta http-equiv>`
+injected by the reference client.
+
+Not acceptable: `visible-text=False`, different `sha256`, a `MISSING` `cid`,
+non-empty `defects`, 8-bit text part without `Content-Transfer-Encoding`
+(the script flags it explicitly).
+
+## 4. Manual inspection
+
+```bash
+# structure and headers without opening a client
+python3 -c "import email,email.policy,sys; m=email.message_from_binary_file(open(sys.argv[1],'rb'),policy=email.policy.default); print(m)" out/msgconv.eml | head -40
+
+# open in Thunderbird (real round-trip)
+thunderbird out/msgconv.eml
+```
+
+The round-trip on Outlook and Thunderbird remains the final criterion of point
+17 of the plan and must be done by hand: no script replaces it.
+
+## 5. Extending the corpus
+
+1. put the new `.msg` files in `samples/`;
+2. convert them all:
+
+```bash
+for f in samples/*.msg; do ./tools/oneshot-msgconv/run.sh "$f"; done
+```
+
+3. for each one, download the reference from the client and compare.
+
+Cases still to cover (from the plan, point 3), not present in the current
+sample:
+
+- multiple non-inline attachments;
+- Unicode file names;
+- X500/Exchange-only senders without transport headers;
+- nested `.msg`;
+- RTF-only messages without HTML;
+- attachments without MIME type;
+- very large messages (> 25 MB);
+- corrupted or truncated files.
+
+## 6. Cleanup
+
+```bash
+rm -rf out/* tools/oneshot-msgconv/{bin,obj}
+docker image rm msg2eml-oneshot:local
+rm -rf /tmp/msgconv-nuget          # NuGet cache, recreated when needed
+```
+
+`out/` is entirely regenerable, except `outlook-web-reference.eml`, which
+must be downloaded again from the client.

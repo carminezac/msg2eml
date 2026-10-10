@@ -1,0 +1,13 @@
+# real corpus and probe output: third-party correspondence, never versioned
+samples/
+out/
+
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+
+# python cache
+__pycache__/
+*.pyc

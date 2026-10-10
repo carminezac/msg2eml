@@ -1,0 +1,34 @@
+namespace Msg2Eml.Tests;
+
+/// <summary>
+/// The real corpus is not versioned (plan, section 9). Tests that need it look for the
+/// <c>.msg</c> files in the directory given by <c>MSG2EML_SAMPLES</c>, or in <c>samples/</c> at the
+/// repository root, and skip themselves if they find nothing.
+/// </summary>
+internal static class Fixtures
+{
+    public static string? SamplesDir
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("MSG2EML_SAMPLES");
+            if (!string.IsNullOrEmpty(env) && Directory.Exists(env)) return env;
+
+            var dir = AppContext.BaseDirectory;
+            for (var i = 0; i < 8 && dir != null; i++)
+            {
+                var candidate = Path.Combine(dir, "samples");
+                if (Directory.Exists(candidate)) return candidate;
+                dir = Path.GetDirectoryName(dir);
+            }
+            return null;
+        }
+    }
+
+    public static IReadOnlyList<string> SampleMsgFiles =>
+        SamplesDir is { } d ? Directory.GetFiles(d, "*.msg").Order().ToList() : [];
+
+    public static string? FirstSample => SampleMsgFiles.FirstOrDefault();
+
+    public static byte[] OleMagic => [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+}

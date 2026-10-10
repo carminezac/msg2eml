@@ -1,0 +1,46 @@
+# msg2eml — stack for Portainer (plan, sections 6 and 11)
+#
+# Deploy: docker compose up -d --build
+# Without a reverse proxy, port 8080 is exposed directly on the LAN.
+# With Traefik: remove `ports`, attach the service to the proxy network
+# and add the routing labels.
+
+services:
+  msg2eml:
+    build: .
+    image: msg2eml:local
+    container_name: msg2eml
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      - Msg2Eml__MaxUploadBytes=52428800
+      - Msg2Eml__MaxNestingDepth=5
+      - Msg2Eml__MaxDecodedBytes=268435456
+      - Msg2Eml__MaxConcurrentConversions=4
+      - Msg2Eml__RateLimitPerMinute=0
+      - Msg2Eml__JsonLogs=true
+
+    # hardening
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # MsgReader works in memory: ~3-4x the .msg size per conversion.
+    # 4 conversions of 50 MB ≈ 800 MB; size together with MaxConcurrentConversions.
+    mem_limit: 1g
+    pids_limit: 256
+
+    # The container has no reason to reach the network: internal network, no egress.
+    networks:
+      - msg2eml
+
+networks:
+  msg2eml:
+    driver: bridge
+    internal: false   # true when behind Traefik on the same network; must stay false with `ports`

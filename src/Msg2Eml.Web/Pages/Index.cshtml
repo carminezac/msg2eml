@@ -1,0 +1,121 @@
+@page
+@inject Msg2EmlOptions Options
+@{
+    var maxMb = Options.MaxUploadBytes / (1024 * 1024);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MSG → EML Converter</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.4; }
+        h1 { font-size: 1.5rem; font-weight: 600; }
+        #drop { border: 2px dashed #888; border-radius: .5rem; padding: 2.5rem 1rem; text-align: center; cursor: pointer; }
+        #drop.over { border-color: #2a7; background: rgba(34,170,119,.08); }
+        #drop p { margin: .25rem 0; color: #666; }
+        #file { display: none; }
+        #name { font-weight: 600; word-break: break-all; }
+        button { font: inherit; padding: .5rem 1.25rem; margin-top: 1rem; border-radius: .4rem; border: 1px solid #888; background: #eee; cursor: pointer; }
+        button:disabled { opacity: .5; cursor: default; }
+        progress { width: 100%; margin-top: 1rem; display: none; }
+        #msg { margin-top: 1rem; padding: .75rem 1rem; border-radius: .4rem; display: none; white-space: pre-wrap; }
+        #msg.err { display: block; background: rgba(220,50,50,.12); border: 1px solid rgba(220,50,50,.5); }
+        #msg.ok { display: block; background: rgba(34,170,119,.12); border: 1px solid rgba(34,170,119,.5); }
+        footer { margin-top: 3rem; font-size: .85rem; color: #777; }
+        code { font-size: .9em; }
+    </style>
+</head>
+<body>
+    <h1>MSG → EML Converter</h1>
+
+    <div id="drop" tabindex="0" role="button" aria-label="Choose or drop a .msg file">
+        <p><strong>Drop a .msg file here</strong></p>
+        <p>or click to choose one</p>
+        <p id="name"></p>
+    </div>
+    <input type="file" id="file" accept=".msg">
+
+    <button id="go" disabled>Convert</button>
+    <progress id="bar" max="100" value="0"></progress>
+    <div id="msg" role="status"></div>
+
+    <footer>
+        Limit @maxMb MB per file. No data is kept after conversion.
+        API: <code>POST /api/convert</code> (multipart, field <code>file</code>).
+    </footer>
+
+    <script>
+        const drop = document.getElementById('drop');
+        const input = document.getElementById('file');
+        const nameEl = document.getElementById('name');
+        const go = document.getElementById('go');
+        const bar = document.getElementById('bar');
+        const msg = document.getElementById('msg');
+        const MAX = @Options.MaxUploadBytes;
+        let current = null;
+
+        function show(kind, text) { msg.className = kind; msg.textContent = text; }
+        function hide() { msg.className = ''; msg.textContent = ''; }
+
+        function pick(file) {
+            hide();
+            if (!file) return;
+            if (!/\.msg$/i.test(file.name)) { show('err', 'Only .msg files are accepted.'); return; }
+            if (file.size > MAX) { show('err', 'The file exceeds the @maxMb MB limit.'); return; }
+            current = file;
+            nameEl.textContent = file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+            go.disabled = false;
+        }
+
+        drop.addEventListener('click', () => input.click());
+        drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+        input.addEventListener('change', () => pick(input.files[0]));
+        ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+        ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+        drop.addEventListener('drop', e => pick(e.dataTransfer.files[0]));
+
+        go.addEventListener('click', () => {
+            if (!current) return;
+            hide();
+            go.disabled = true;
+            bar.style.display = 'block';
+            bar.value = 0;
+
+            const fd = new FormData();
+            fd.append('file', current, current.name);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/convert');
+            xhr.responseType = 'blob';
+            xhr.upload.onprogress = e => { if (e.lengthComputable) bar.value = Math.round(e.loaded * 100 / e.total); };
+            xhr.onerror = () => { bar.style.display = 'none'; go.disabled = false; show('err', 'Network error during conversion.'); };
+            xhr.onload = async () => {
+                bar.style.display = 'none';
+                go.disabled = false;
+                if (xhr.status === 200) {
+                    let fname = current.name.replace(/\.msg$/i, '') + '.eml';
+                    const cd = xhr.getResponseHeader('Content-Disposition') || '';
+                    const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) || /filename="([^"]+)"/i.exec(cd);
+                    if (m) { try { fname = decodeURIComponent(m[1]); } catch { fname = m[1]; } }
+                    const url = URL.createObjectURL(xhr.response);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                    show('ok', 'Conversion completed: ' + fname);
+                } else {
+                    let text = 'Error ' + xhr.status;
+                    try {
+                        const j = JSON.parse(await xhr.response.text());
+                        text = j.code + ': ' + j.message;
+                    } catch { }
+                    show('err', text);
+                }
+            };
+            xhr.send(fd);
+        });
+    </script>
+</body>
+</html>
