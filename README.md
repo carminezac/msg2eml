@@ -54,7 +54,26 @@ Stacks → Add stack → Web editor, paste one of:
 
 Pin a version tag (`ghcr.io/carminezac/msg2eml:0.3.0`) instead of `latest` for
 reproducible deploys. Tags are produced for every push to `master` (`latest`,
-short SHA) and for every `v*` git tag (`0.3.0`, `0.3`).
+short SHA) and for every `v*` git tag (`0.3.0`, `0.3`). A `v*` tag also
+creates the GitHub release with the binaries, the stack files, the systemd unit
+and `SHA256SUMS`; the tag must match `<Version>` in `Directory.Build.props` or
+the pipeline fails.
+
+### Without Docker
+
+Every release on GitHub ships self-contained binaries for Linux (x64, arm64),
+Windows (x64) and macOS (x64, arm64): no .NET runtime to install. Unpack, then:
+
+```bash
+./msg2eml/Msg2Eml.Web                               # http://localhost:8080, local only
+./msg2eml/Msg2Eml.Web --urls http://0.0.0.0:8080    # reachable from the LAN
+```
+
+Configuration is the same (`Msg2Eml__*` environment variables, or
+`appsettings.json` next to the executable). Verify downloads with
+`sha256sum -c SHA256SUMS`. For Linux servers,
+[`deploy/msg2eml.service`](deploy/msg2eml.service) is a hardened systemd unit
+that mirrors the container settings.
 
 ### Observability
 
@@ -149,9 +168,9 @@ msg2eml/
 │   ├── dev.sh                    test/build/up without .NET on the host
 │   ├── gen-fixtures/             MsgKit generator of the synthetic fixtures
 │   └── oneshot-msgconv/          spike CLI probe + compare-eml.py
-├── deploy/                       Portainer stack files (direct port, Traefik)
+├── deploy/                       Portainer stack files (direct port, Traefik), systemd unit
 ├── docs/                         journal, playbook, quality analysis, round-trip checklist
-├── .github/workflows/ci.yml      tests + multi-arch image on GHCR
+├── .github/workflows/ci.yml      tests, multi-arch image on GHCR, release with binaries
 ├── samples/  out/                real corpus, not committed
 ├── Dockerfile  docker-compose.yml  Msg2Eml.slnx  Directory.Build.props
 └── action-plan.md

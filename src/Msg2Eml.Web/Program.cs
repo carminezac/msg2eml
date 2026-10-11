@@ -16,6 +16,14 @@ MsgConverter.EnsureEncodings();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Outside a container nothing sets the listening address: default to localhost only.
+// The Docker image sets ASPNETCORE_HTTP_PORTS=8080; a bare binary can pass --urls to expose the LAN.
+if (string.IsNullOrEmpty(builder.Configuration["urls"])
+    && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS"))
+    && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS"))
+    && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS")))
+    builder.WebHost.UseUrls("http://localhost:8080");
+
 var options = builder.Configuration.GetSection(Msg2EmlOptions.SectionName).Get<Msg2EmlOptions>() ?? new Msg2EmlOptions();
 builder.Services.AddSingleton(options);
 

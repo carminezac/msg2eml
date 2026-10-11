@@ -7,7 +7,14 @@
     <RootNamespace>Msg2Eml.Web</RootNamespace>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditLevel>moderate</NuGetAuditLevel>
-    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- No culture-specific formatting anywhere: invariant mode makes the self-contained
+         binaries independent of the system ICU library. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- self-contained single-file publish settings; the RID comes from the command line -->
+    <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <UserSecretsId>msg2eml-web</UserSecretsId>
   </PropertyGroup>
 

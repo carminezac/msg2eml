@@ -5,6 +5,8 @@
     <Product>msg2eml</Product>
     <RepositoryUrl>https://github.com/carminezac/msg2eml</RepositoryUrl>
     <Deterministic>true</Deterministic>
+    <!-- symbols inside the assemblies: line numbers in stack traces, no loose .pdb files in releases -->
+    <DebugType>embedded</DebugType>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 </Project>
