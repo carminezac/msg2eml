@@ -22,4 +22,7 @@ public sealed class Msg2EmlOptions
 
     /// <summary>Logs in JSON format on stdout (default) or as text.</summary>
     public bool JsonLogs { get; set; } = true;
+
+    /// <summary>Expose Prometheus metrics on <c>GET /metrics</c>.</summary>
+    public bool MetricsEnabled { get; set; } = true;
 }

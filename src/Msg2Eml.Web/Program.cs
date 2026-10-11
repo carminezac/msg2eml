@@ -22,7 +22,7 @@ builder.Services.AddSingleton(options);
 // Structured logs on stdout (plan, section 13).
 builder.Logging.ClearProviders();
 if (options.JsonLogs)
-    builder.Logging.AddJsonConsole(o => { o.UseUtcTimestamp = true; o.TimestampFormat = "O"; });
+    builder.Logging.AddJsonConsole(o => { o.UseUtcTimestamp = true; o.TimestampFormat = "O"; o.IncludeScopes = true; });
 else
     builder.Logging.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat = "O"; });
 
@@ -42,6 +42,8 @@ builder.Services.AddSingleton(new ConversionOptions
     MaxDecodedBytes = options.MaxDecodedBytes,
 });
 builder.Services.AddSingleton<MsgConverter>();
+builder.Services.AddSingleton<ConversionMetrics>();
+if (options.MetricsEnabled) builder.Services.AddSingleton<PrometheusExporter>();
 builder.Services.AddSingleton(new SemaphoreSlim(Math.Max(1, options.MaxConcurrentConversions)));
 
 builder.Services.AddRazorPages();
@@ -75,24 +77,46 @@ if (options.RateLimitPerMinute > 0) app.UseRateLimiter();
 app.MapRazorPages();
 app.MapHealthChecks("/health");
 
+if (options.MetricsEnabled)
+{
+    // Eager: the listener must be running before the first measurement, not at the first scrape.
+    var exporter = app.Services.GetRequiredService<PrometheusExporter>();
+    app.MapGet("/metrics", () => Results.Text(exporter.Render(), "text/plain; version=0.0.4; charset=utf-8"));
+}
+
+app.Logger.LogInformation("msg2eml {Version} starting: max_upload={MaxUpload} max_decoded={MaxDecoded} nesting={Nesting} concurrency={Concurrency} rate_limit={RateLimit} metrics={Metrics}",
+    AppVersion, options.MaxUploadBytes, options.MaxDecodedBytes, options.MaxNestingDepth,
+    options.MaxConcurrentConversions, options.RateLimitPerMinute, options.MetricsEnabled);
+
 var convert = app.MapPost("/api/convert", async (
     IFormFile? file,
     MsgConverter converter,
     SemaphoreSlim gate,
+    ConversionMetrics metrics,
     ILoggerFactory loggerFactory,
     CancellationToken ct) =>
 {
     var log = loggerFactory.CreateLogger("Msg2Eml.Convert");
 
     if (file is null || file.Length == 0)
+    {
+        metrics.Rejected("InvalidInput");
         return ApiError(StatusCodes.Status400BadRequest, "InvalidInput", "Upload a .msg file in the multipart field 'file'.");
+    }
     if (!file.FileName.EndsWith(".msg", StringComparison.OrdinalIgnoreCase))
+    {
+        metrics.Rejected("InvalidInput");
         return ApiError(StatusCodes.Status400BadRequest, "InvalidInput", "Only .msg files are accepted.");
+    }
     if (file.Length > options.MaxUploadBytes)
+    {
+        metrics.Rejected("FileTooLarge");
         return ApiError(StatusCodes.Status413PayloadTooLarge, "FileTooLarge", $"The file exceeds the limit of {options.MaxUploadBytes} bytes.");
+    }
 
     var sw = Stopwatch.StartNew();
     log.LogInformation("conversion_started input_size={InputSize}", file.Length);
+    metrics.Started(file.Length);
 
     await gate.WaitAsync(ct);
     try
@@ -112,10 +136,12 @@ var convert = app.MapPost("/api/convert", async (
         if (s.UnresolvedRecipients > 0)
             log.LogWarning("recipient_unresolved count={Count}", s.UnresolvedRecipients);
 
+        metrics.Completed(sw.Elapsed, result.Eml.Length);
         return Results.File(result.Eml, "message/rfc822", OutputFileName(file.FileName));
     }
     catch (ConversionException ex)
     {
+        metrics.Failed(sw.Elapsed, ex.Code);
         var status = ex.Code switch
         {
             ConversionErrorCode.FileTooLarge => StatusCodes.Status413PayloadTooLarge,
@@ -146,6 +172,7 @@ if (options.RateLimitPerMinute > 0) convert.RequireRateLimiting("convert");
 
 app.Run();
 return 0;
+
 
 // ------------------------------------------------------------------
 
@@ -178,4 +205,13 @@ static class HealthProbe
             return 1;
         }
     }
+}
+
+public partial class Program
+{
+    /// <summary>Informational version from the assembly (set by &lt;Version&gt; in the csproj).</summary>
+    public static string AppVersion { get; } =
+        typeof(Program).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion.Split('+')[0]
+        ?? typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "dev";
 }

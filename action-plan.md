@@ -18,7 +18,8 @@ Stack:
 
 - 2026-09-07: plan revised after a **validation spike** of the stack on a real message (`docs/01-spike-log.md`, `docs/03-quality-analysis.md`). Stack confirmed; `tools/oneshot-msgconv/Program.cs` contains the probe's conversion logic.
 - 2026-10-12: **v0.1 completed**. Service in `src/` (Core + Web), 18 tests in `tests/`, Dockerfile and hardened compose, verified in the container: health OK, conversion via API identical to the probe's, comparison with the Outlook Web export unchanged.
-- 2026-10-12: **v0.2 completed**. 13 synthetic fixtures generated with MsgKit (`tools/gen-fixtures`), 45 tests including golden tests against the Outlook Web reference and the health check running a real micro-conversion. The fixtures exposed four defects in the v0.1 converter, all fixed (see below). Next step: v0.3.
+- 2026-10-12: **v0.2 completed**. 13 synthetic fixtures generated with MsgKit (`tools/gen-fixtures`), 45 tests including golden tests against the Outlook Web reference and the health check running a real micro-conversion. The fixtures exposed four defects in the v0.1 converter, all fixed (see below).
+- 2026-10-12: **v0.3 completed** except the manual round-trip. Prometheus metrics on `/metrics` without third-party packages, GitHub Actions pipeline (tests + multi-arch image on GHCR), two Portainer stack files (direct port, Traefik), version `0.3.0` in logs and UI, round-trip checklist in `docs/04-round-trip-checklist.md`. The round-trip itself in Outlook and Thunderbird is a manual step still to be done. Next step: v0.4.
 
 Defects found by the synthetic fixtures, all in code that the single real sample could not reach:
 
@@ -410,11 +411,14 @@ monitoring
 - [ ] S/MIME and embedded `.msg`: not producible with MsgKit, covered only by real samples
 - [ ] manual Outlook and Thunderbird round-trip on a real corpus of 10-20 messages (moved to v0.3)
 
-### v0.3 — deployment
+### v0.3 — deployment (completed 2026-10-12, round-trip pending)
 
-- Portainer stack, optional Traefik
-- structured logs and metrics
-- manual Outlook and Thunderbird round-trip on a real corpus of 10-20 messages
+- [x] image published on GHCR by GitHub Actions, amd64 and arm64, tagged by branch, SHA and semver
+- [x] Portainer stack files: direct port, and behind Traefik with `/metrics` off the public route
+- [x] structured logs with request scopes, startup line with version and limits
+- [x] metrics: `System.Diagnostics.Metrics` instruments exposed in Prometheus format by a small built-in exporter
+- [x] round-trip checklist (`docs/04-round-trip-checklist.md`)
+- [ ] manual Outlook and Thunderbird round-trip on a real corpus of 10-20 messages
 
 ### v0.4 — batch
 

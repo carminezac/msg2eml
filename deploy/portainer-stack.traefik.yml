@@ -1,0 +1,65 @@
+# msg2eml — Portainer stack behind Traefik (plan, section 11).
+#
+# Assumes an existing Traefik instance attached to the external network `proxy`,
+# with an entrypoint `websecure` and a certificate resolver `letsencrypt`.
+# Adjust the three values below to your Traefik setup. No port is published: the
+# service is reachable only through the proxy, and the `internal` network has no egress.
+
+services:
+  msg2eml:
+    image: ghcr.io/carminezac/msg2eml:latest
+    container_name: msg2eml
+    restart: unless-stopped
+
+    environment:
+      - Msg2Eml__MaxUploadBytes=52428800
+      - Msg2Eml__MaxNestingDepth=5
+      - Msg2Eml__MaxDecodedBytes=268435456
+      - Msg2Eml__MaxConcurrentConversions=4
+      - Msg2Eml__RateLimitPerMinute=30
+      - Msg2Eml__JsonLogs=true
+      - Msg2Eml__MetricsEnabled=true
+      # Traefik terminates TLS; trust its X-Forwarded-* headers so rate limiting sees the client IP.
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+
+    networks:
+      - proxy
+      - internal
+
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      # /metrics is excluded from the public route: scrape it from the proxy network instead.
+      - traefik.http.routers.msg2eml.rule=Host(`msg2eml.example.lan`) && !Path(`/metrics`)
+      - traefik.http.routers.msg2eml.entrypoints=websecure
+      - traefik.http.routers.msg2eml.tls.certresolver=letsencrypt
+      - traefik.http.services.msg2eml.loadbalancer.server.port=8080
+
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    pids_limit: 256
+
+    healthcheck:
+      test: ["CMD", "dotnet", "Msg2Eml.Web.dll", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  proxy:
+    external: true
+  internal:
+    internal: true

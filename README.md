@@ -11,14 +11,20 @@ valid MIME for an independent parser. Details in [`docs/03-quality-analysis.md`]
 
 ## Getting started
 
-Only Docker is required.
+Docker only. The image is built by GitHub Actions for amd64 and arm64 and
+published on GitHub Container Registry:
 
 ```bash
-docker compose up -d --build
-# WebUI:  http://localhost:8080/
-# API:    POST http://localhost:8080/api/convert   (multipart, field `file`)
-# Health: GET  http://localhost:8080/health
+docker run -d --name msg2eml -p 8080:8080 --read-only --tmpfs /tmp:size=64m \
+  --cap-drop ALL --security-opt no-new-privileges:true --memory 1g \
+  ghcr.io/carminezac/msg2eml:latest
+# WebUI:   http://localhost:8080/
+# API:     POST http://localhost:8080/api/convert   (multipart, field `file`)
+# Health:  GET  http://localhost:8080/health
+# Metrics: GET  http://localhost:8080/metrics      (Prometheus text format)
 ```
+
+To build from source instead: `docker compose up -d --build`.
 
 ```bash
 curl -f -o mail.eml -F "file=@mail.msg" http://localhost:8080/api/convert
@@ -30,14 +36,34 @@ input file name with the `.eml` extension. Errors are JSON `{code, message}`:
 | HTTP | `code` | When |
 | --- | --- | --- |
 | 400 | `InvalidInput` | `file` field missing or extension other than `.msg` |
-| 413 | `FileTooLarge` | over `MaxUploadBytes` or over `MaxDecodedBytes` decoded |
-| 422 | `InvalidMsgFile` | not an OLE container or MsgReader cannot open it |
+| 413 | `FileTooLarge` | over `MaxUploadBytes`, or over `MaxDecodedBytes` once decoded |
+| 422 | `InvalidMsgFile` | not an OLE container, or MsgReader cannot open it |
 | 422 | `UnsupportedMessageType` | appointment, task, contact, note |
 | 422 | `NestingTooDeep` | nested `.msg` beyond `MaxNestingDepth` |
 | 500 | `MimeGenerationError`, `ConversionError`, `AttachmentReadError` | internal error |
 
-Error messages and logs never contain subjects, addresses, names or
-attachment contents.
+Error messages, logs and metric labels never contain subjects, addresses,
+attachment names or contents.
+
+### Portainer
+
+Stacks → Add stack → Web editor, paste one of:
+
+- [`deploy/portainer-stack.yml`](deploy/portainer-stack.yml): port 8080 on the LAN, hardened, health check, log rotation;
+- [`deploy/portainer-stack.traefik.yml`](deploy/portainer-stack.traefik.yml): behind Traefik with TLS, no published port, `/metrics` kept off the public route, rate limiting on.
+
+Pin a version tag (`ghcr.io/carminezac/msg2eml:0.3.0`) instead of `latest` for
+reproducible deploys. Tags are produced for every push to `master` (`latest`,
+short SHA) and for every `v*` git tag (`0.3.0`, `0.3`).
+
+### Observability
+
+Structured JSON logs on stdout with the events `conversion_started`,
+`conversion_completed`, `invalid_msg`, `conversion_failed` and
+`recipient_unresolved`, each carrying only sizes, durations, counters and
+error codes. `GET /metrics` exposes, in Prometheus format and without any
+third-party package: conversions by result and error code, duration and size
+histograms, in-progress gauge, resident memory and GC gauges.
 
 ## Configuration
 
@@ -51,6 +77,7 @@ Environment variables `Msg2Eml__<Name>` (see `docker-compose.yml`):
 | `MaxConcurrentConversions` | 4 | simultaneous conversions; the others wait |
 | `RateLimitPerMinute` | 0 (off) | requests per minute per IP |
 | `JsonLogs` | true | JSON logs on stdout, otherwise text |
+| `MetricsEnabled` | true | Prometheus metrics on `GET /metrics` |
 
 The container runs non-root, with a read-only filesystem, `cap_drop: ALL`,
 `no-new-privileges`, `mem_limit` and `pids_limit`. The conversion takes place
@@ -115,22 +142,25 @@ Full procedure in [`docs/02-playbook.md`](docs/02-playbook.md).
 msg2eml/
 ├── src/
 │   ├── Msg2Eml.Core/             MsgConverter, errors, limits
-│   └── Msg2Eml.Web/              Minimal API, Razor Page, healthcheck
+│   └── Msg2Eml.Web/              Minimal API, Razor Page, health check, metrics
 ├── tests/Msg2Eml.Tests/          xunit: core, limits, synthetic fixtures, golden, API
 │   └── Fixtures/                 synthetic .msg files (generated, committed)
 ├── tools/
 │   ├── dev.sh                    test/build/up without .NET on the host
 │   ├── gen-fixtures/             MsgKit generator of the synthetic fixtures
 │   └── oneshot-msgconv/          spike CLI probe + compare-eml.py
-├── docs/                         journal, playbook, quality analysis
+├── deploy/                       Portainer stack files (direct port, Traefik)
+├── docs/                         journal, playbook, quality analysis, round-trip checklist
+├── .github/workflows/ci.yml      tests + multi-arch image on GHCR
 ├── samples/  out/                real corpus, not committed
-├── Dockerfile  docker-compose.yml  Msg2Eml.slnx
+├── Dockerfile  docker-compose.yml  Msg2Eml.slnx  Directory.Build.props
 └── action-plan.md
 ```
 
 ## Next steps
 
-v0.3 of the plan: manual round-trip in Outlook and Thunderbird on a real corpus
-of 10-20 messages, Portainer stack with optional Traefik, metrics. Not coverable
-with synthetic fixtures and still open: embedded `.msg` (MsgKit cannot write
-them) and S/MIME, both exercised only when a real sample is available.
+Manual round-trip in Outlook and Thunderbird on a real corpus, following
+[`docs/04-round-trip-checklist.md`](docs/04-round-trip-checklist.md). Then v0.4
+of the plan: batch upload with ZIP output. Still not coverable with synthetic
+fixtures: embedded `.msg` and S/MIME, exercised only when a real sample is
+available.

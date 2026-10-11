@@ -22,6 +22,7 @@ services:
       - Msg2Eml__MaxConcurrentConversions=4
       - Msg2Eml__RateLimitPerMinute=0
       - Msg2Eml__JsonLogs=true
+      - Msg2Eml__MetricsEnabled=true
 
     # hardening
     read_only: true

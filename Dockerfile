@@ -3,6 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # separate restore to leverage the layer cache
+COPY Directory.Build.props .
 COPY src/Msg2Eml.Core/Msg2Eml.Core.csproj src/Msg2Eml.Core/
 COPY src/Msg2Eml.Web/Msg2Eml.Web.csproj  src/Msg2Eml.Web/
 RUN dotnet restore src/Msg2Eml.Web/Msg2Eml.Web.csproj

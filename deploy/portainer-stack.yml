@@ -1,0 +1,48 @@
+# msg2eml — Portainer stack (plan, sections 6 and 11), direct port on the LAN.
+#
+# Portainer → Stacks → Add stack → Web editor: paste this file.
+# The image is built by GitHub Actions and published on GHCR; nothing is built on the host.
+# Pin a version (ghcr.io/carminezac/msg2eml:0.3.0) instead of :latest for reproducible deploys.
+
+services:
+  msg2eml:
+    image: ghcr.io/carminezac/msg2eml:latest
+    container_name: msg2eml
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      - Msg2Eml__MaxUploadBytes=52428800
+      - Msg2Eml__MaxNestingDepth=5
+      - Msg2Eml__MaxDecodedBytes=268435456
+      - Msg2Eml__MaxConcurrentConversions=4
+      - Msg2Eml__RateLimitPerMinute=0
+      - Msg2Eml__JsonLogs=true
+      - Msg2Eml__MetricsEnabled=true
+
+    # hardening
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # ~3-4x the .msg size per conversion: 4 x 50 MB ≈ 800 MB. Size with MaxConcurrentConversions.
+    mem_limit: 1g
+    pids_limit: 256
+
+    healthcheck:
+      test: ["CMD", "dotnet", "Msg2Eml.Web.dll", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

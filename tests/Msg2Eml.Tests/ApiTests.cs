@@ -35,6 +35,28 @@ public class ApiTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Metrics_ExposePrometheusText_AndCountConversions()
+    {
+        // One rejected request, then read the exposition.
+        await _client.PostAsync("/api/convert", Upload(Encoding.ASCII.GetBytes("nope"), "x.msg"));
+
+        var resp = await _client.GetAsync("/metrics");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        Assert.StartsWith("text/plain", resp.Content.Headers.ContentType!.MediaType);
+
+        var text = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("# TYPE msg2eml_conversions_total counter", text);
+        Assert.Contains("msg2eml_conversions_total{error_code=\"InvalidMsgFile\",result=\"error\"}", text);
+        Assert.Contains("# TYPE msg2eml_conversion_duration_seconds histogram", text);
+        Assert.Contains("msg2eml_conversion_duration_seconds_bucket{result=\"error\",le=\"+Inf\"}", text);
+        Assert.Contains("# TYPE msg2eml_conversions_in_progress gauge", text);
+        Assert.Contains("process_resident_memory_bytes ", text);
+
+        // No message content can appear in a label: only enum names and fixed strings.
+        Assert.DoesNotContain("nope", text);
+    }
+
+    [Fact]
     public async Task Index_RendersUploadPage()
     {
         var resp = await _client.GetAsync("/");

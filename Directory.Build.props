@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.3.0</Version>
+    <Authors>carminezac</Authors>
+    <Product>msg2eml</Product>
+    <RepositoryUrl>https://github.com/carminezac/msg2eml</RepositoryUrl>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>
