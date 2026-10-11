@@ -391,8 +391,7 @@ public sealed class MsgConverter
 
     private void AddAddress(InternetAddressList list, string? display, string? email, BuildContext ctx)
     {
-        var resolved = !string.IsNullOrWhiteSpace(email) && email.Contains('@') && !email.StartsWith('/');
-        if (!resolved)
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@') || email.StartsWith('/'))
         {
             if (string.IsNullOrWhiteSpace(display)) return;
             // Policy: X500/Exchange-only recipient, name preserved, placeholder address.

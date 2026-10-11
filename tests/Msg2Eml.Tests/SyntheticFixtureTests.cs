@@ -90,7 +90,7 @@ public class SyntheticFixtureTests
         var topHeaders = text[..text.IndexOf("\r\n\r\n", StringComparison.Ordinal)];
         Assert.Contains("\r\nContent-Language: en-US", topHeaders);
         Assert.Equal(1, text.Split("Content-Language:").Length - 1);
-        Assert.Equal("en-US", mime.Body.Headers[HeaderId.ContentLanguage]);
+        Assert.Equal("en-US", mime.Body!.Headers[HeaderId.ContentLanguage]);
         Assert.Equal("Native HTML message", mime.Subject);
         Assert.IsType<MultipartAlternative>(mime.Body);
         Assert.Contains("<b>Bob</b>", mime.HtmlBody);
@@ -111,7 +111,7 @@ public class SyntheticFixtureTests
 
         var attachment = mime.Attachments.OfType<MimePart>().Single();
         Assert.Equal("unreferenced.png", attachment.FileName);
-        Assert.Equal(ContentDisposition.Attachment, attachment.ContentDisposition.Disposition);
+        Assert.Equal(ContentDisposition.Attachment, attachment.ContentDisposition!.Disposition);
 
         // Every cid in the HTML resolves (also enforced by EmlFidelity.Validate in Convert()).
         Assert.Equal(2, EmlFidelity.Cids(mime.HtmlBody!).Count());
@@ -135,7 +135,7 @@ public class SyntheticFixtureTests
         Assert.Empty(Decode(parts["empty.bin"]));
 
         Assert.All(parts.Values, p => Assert.Equal(ContentEncoding.Base64, p.ContentTransferEncoding));
-        Assert.All(parts.Values, p => Assert.Equal(ContentDisposition.Attachment, p.ContentDisposition.Disposition));
+        Assert.All(parts.Values, p => Assert.Equal(ContentDisposition.Attachment, p.ContentDisposition!.Disposition));
     }
 
     [Fact]
@@ -236,7 +236,7 @@ public class SyntheticFixtureTests
     private static byte[] Decode(MimePart part)
     {
         using var ms = new MemoryStream();
-        part.Content.DecodeTo(ms);
+        part.Content!.DecodeTo(ms);
         return ms.ToArray();
     }
 }

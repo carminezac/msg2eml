@@ -105,6 +105,7 @@ public static class EmlFidelity
         {
             if (part is TextPart && part.FileName == null) continue;
             var key = part.FileName ?? part.ContentId ?? "?";
+            if (part.Content == null) continue;
             using var ms = new MemoryStream();
             part.Content.DecodeTo(ms);
             result[key] = $"{ms.Length}B/{Convert.ToHexString(SHA256.HashData(ms.ToArray()))[..16]}";

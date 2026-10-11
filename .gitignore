@@ -8,6 +8,9 @@ obj/
 *.user
 .vs/
 
+# local notes and exported pages
+/*.pdf
+
 # python cache
 __pycache__/
 *.pyc
