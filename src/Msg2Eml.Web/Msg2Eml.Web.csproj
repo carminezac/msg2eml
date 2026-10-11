@@ -15,4 +15,9 @@
     <ProjectReference Include="..\Msg2Eml.Core\Msg2Eml.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- synthetic .msg used by the health check for a real micro-conversion -->
+    <EmbeddedResource Include="Resources\health.msg" LogicalName="health.msg" />
+  </ItemGroup>
+
 </Project>

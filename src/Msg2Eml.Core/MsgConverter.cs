@@ -90,6 +90,11 @@ public sealed class MsgConverter
                 // Requirement 3: MimeKit does not assign a Content-Transfer-Encoding on its own.
                 mime.Prepare(EncodingConstraint.SevenBit);
 
+                // Prepare leaves pure-ASCII text parts without an encoding (implicit 7bit); make it explicit.
+                foreach (var part in mime.BodyParts.OfType<MimePart>())
+                    if (part.ContentTransferEncoding == ContentEncoding.Default)
+                        part.ContentTransferEncoding = ContentEncoding.SevenBit;
+
                 // Requirement 4: CRLF and 7-bit headers.
                 var fmt = FormatOptions.Default.Clone();
                 fmt.International = false;
@@ -141,8 +146,13 @@ public sealed class MsgConverter
         if (depth == 0) ctx.HasTransportHeaders = hasTransport;
 
         var m = LoadHeaders(hasTransport ? raw! : string.Empty);
-        var originalContentType = m.Headers[HeaderId.ContentType];
-        RemoveBodyHeaders(m);
+
+        // MimeKit routes the Content-* headers of the loaded block to the (empty) body entity, not
+        // to the message: the old MIME framing disappears by itself when the body is replaced
+        // (requirement 9). Two things must be taken from it first: the original Content-Type
+        // (S/MIME detection) and Content-Language, a message-level header that would otherwise be lost.
+        var originalContentType = m.Body?.ContentType;
+        var contentLanguage = m.Body?.Headers[HeaderId.ContentLanguage];
 
         // 2) MAPI properties only for what is missing.
         if (string.IsNullOrEmpty(m.Subject) && !string.IsNullOrEmpty(msg.Subject))
@@ -172,6 +182,7 @@ public sealed class MsgConverter
         if (TryBuildSmimeOpaque(originalContentType, attachments, msg, ctx, depth, out var smimeBody))
         {
             m.Body = smimeBody;
+            KeepContentLanguage(m, contentLanguage);
             return m;
         }
 
@@ -230,7 +241,19 @@ public sealed class MsgConverter
         }
 
         m.Body = bb.ToMessageBody();
+        KeepContentLanguage(m, contentLanguage);
         return m;
+    }
+
+    /// <summary>
+    /// MimeKit writes Content-* headers only from the body entity: a Content-Language added to
+    /// the message header list is dropped. Set on the top-level entity it is written at the top
+    /// of the file, as Outlook Web does.
+    /// </summary>
+    private static void KeepContentLanguage(MimeMessage m, string? contentLanguage)
+    {
+        if (contentLanguage != null && m.Body != null)
+            m.Body.Headers[HeaderId.ContentLanguage] = contentLanguage;
     }
 
     private static MimeMessage LoadHeaders(string rawHeaders)
@@ -242,32 +265,16 @@ public sealed class MsgConverter
     }
 
     /// <summary>
-    /// Removes the MIME framing of the old body (requirement 9). <c>Content-Language</c> is a
-    /// message header and is preserved.
-    /// </summary>
-    private static void RemoveBodyHeaders(MimeMessage m)
-    {
-        var toRemove = m.Headers.Where(h =>
-                h.Id is HeaderId.ContentType or HeaderId.ContentTransferEncoding or HeaderId.MimeVersion
-                    or HeaderId.ContentDisposition or HeaderId.ContentId or HeaderId.ContentDescription
-                    or HeaderId.ContentLocation or HeaderId.ContentMd5
-                || h.Field.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        foreach (var h in toRemove) m.Headers.Remove(h);
-    }
-
-    /// <summary>
     /// S/MIME policy (plan, section 3): an opaque message (<c>application/pkcs7-mime</c>) is
     /// returned with the <c>smime.p7m</c> as its body, byte-identical, so it stays decryptable and
     /// verifiable. Clear-signed messages (<c>multipart/signed</c>) follow the generic path:
     /// the signature cannot be rebuilt in a verifiable way from a <c>.msg</c>.
     /// </summary>
-    private bool TryBuildSmimeOpaque(string? originalContentType, List<object> attachments,
+    private bool TryBuildSmimeOpaque(ContentType? ct, List<object> attachments,
         Storage.Message msg, BuildContext ctx, int depth, out MimeEntity? body)
     {
         body = null;
-        if (originalContentType == null) return false;
-        if (!ContentType.TryParse(originalContentType, out var ct)) return false;
+        if (ct == null) return false;
         if (!ct.MediaType.Equals("application", StringComparison.OrdinalIgnoreCase)) return false;
         if (!(ct.MediaSubtype.Equals("pkcs7-mime", StringComparison.OrdinalIgnoreCase)
               || ct.MediaSubtype.Equals("x-pkcs7-mime", StringComparison.OrdinalIgnoreCase))) return false;
@@ -312,10 +319,10 @@ public sealed class MsgConverter
         if (string.IsNullOrWhiteSpace(cid)) cid = null;
 
         // Inline only if the cid is actually referenced in the HTML; otherwise it is a regular attachment,
-        // even if Outlook marks it IsInline/Hidden.
-        var referenced = cid != null && html != null &&
-                         html.Contains("cid:" + cid, StringComparison.OrdinalIgnoreCase);
-        var inline = referenced || (att.IsInline && cid != null);
+        // even if Outlook marks it IsInline/Hidden: an unreferenced part inside multipart/related is
+        // invisible in most clients, as an attachment the user can at least see it.
+        var inline = cid != null && html != null &&
+                     html.Contains("cid:" + cid, StringComparison.OrdinalIgnoreCase);
 
         var entity = inline
             ? bb.LinkedResources.Add(name, data, contentType)
@@ -338,7 +345,10 @@ public sealed class MsgConverter
 
     private static ContentType ParseContentType(string? mimeType, string fileName)
     {
-        if (!string.IsNullOrWhiteSpace(mimeType) && ContentType.TryParse(mimeType, out var ct)) return ct;
+        // MsgReader guesses application/octet-stream for extensions it does not know (e.g. .msg):
+        // in that case the extension table below gets a chance before giving up.
+        if (!string.IsNullOrWhiteSpace(mimeType) && ContentType.TryParse(mimeType, out var ct)
+            && !ct.IsMimeType("application", "octet-stream")) return ct;
 
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         return ext switch
