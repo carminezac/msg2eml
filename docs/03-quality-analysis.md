@@ -5,7 +5,7 @@ Reference: `out/outlook-web-reference.eml`, export of the same mail from
 Outlook Web.
 Output: `out/msgconv.eml` (43 KB), generated with
 `./tools/oneshot-msgconv/run.sh "samples/<file>.msg" out/msgconv.eml`.
-Full reports: `out/report-conversione.txt`, `out/report-confronto.txt`.
+Full reports: `out/conversion-report.txt`, `out/comparison-report.txt`.
 
 ## Characteristics of the source message
 

@@ -111,6 +111,13 @@ jobs:
       - name: Release notes
         run: |
           {
+            # the section of CHANGELOG.md for this version, if present
+            awk -v v="$VERSION" '
+              $0 ~ "^## \\[" v "\\]" { on=1; next }
+              on && /^## \[/ { exit }
+              on { print }
+            ' CHANGELOG.md
+            echo
             echo "## Binaries (no .NET runtime, no Docker)"
             echo
             echo "- **msg2eml-desktop**: double-click, a window with the converter opens; nothing listens on the network (loopback only, random free port, no firewall prompt) and the program exits when the window is closed."

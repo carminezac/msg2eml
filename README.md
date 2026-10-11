@@ -1,13 +1,23 @@
 # msg2eml
 
-Conversion of Outlook `.msg` files to `.eml`, self-hosted, .NET 10 +
-MsgReader + MimeKit stack. WebUI, HTTP API, hardened Docker container.
+Converts Outlook `.msg` files to standard `.eml` (RFC 5322 / MIME), preserving
+the original transport headers, HTML and text bodies, inline images and
+attachments. .NET 10, MsgReader + MimeKit.
 
-Status: **v0.1, minimal service** (see [`action-plan.md`](action-plan.md),
-section 15). The conversion logic was first validated with a spike on a
-real message, comparing the output with the `.eml` export from Outlook Web:
-original headers, visible text, inline images and `cid:` references identical,
-valid MIME for an independent parser. Details in [`docs/03-quality-analysis.md`](docs/03-quality-analysis.md).
+Current release: **0.3.0** ([changelog](CHANGELOG.md),
+[releases](https://github.com/carminezac/msg2eml/releases)). Available as:
+
+- a **desktop window** (`msg2eml-desktop`) and a **command line** (`msg2eml-cli`):
+  single self-contained files for Windows, macOS and Linux, nothing to install;
+- a **web service** with HTTP API, health check and Prometheus metrics, as a
+  hardened Docker image on GHCR for Portainer, or as a Linux binary with a
+  systemd unit.
+
+Conversion fidelity was validated against the Outlook Web export of a real
+message (identical headers, visible text, inline images and `cid:` references,
+valid MIME for an independent parser; [`docs/03-quality-analysis.md`](docs/03-quality-analysis.md))
+and is covered by 64 tests on synthetic fixtures. The design and its history
+are in [`action-plan.md`](action-plan.md).
 
 ## Getting started
 
@@ -190,13 +200,15 @@ msg2eml/
 ├── .github/workflows/ci.yml      tests, multi-arch image on GHCR, release with binaries
 ├── samples/  out/                real corpus, not committed
 ├── Dockerfile  docker-compose.yml  Msg2Eml.slnx  Directory.Build.props
+├── CHANGELOG.md
 └── action-plan.md
 ```
 
 ## Next steps
 
-Manual round-trip in Outlook and Thunderbird on a real corpus, following
-[`docs/04-round-trip-checklist.md`](docs/04-round-trip-checklist.md). Then v0.4
-of the plan: batch upload with ZIP output. Still not coverable with synthetic
-fixtures: embedded `.msg` and S/MIME, exercised only when a real sample is
-available.
+See the [Unreleased](CHANGELOG.md#unreleased) section of the changelog: a
+native window for the desktop binary with Photino.NET (v0.4), batch upload
+with ZIP output (v0.5), and the manual round-trip in Outlook and Thunderbird
+([`docs/04-round-trip-checklist.md`](docs/04-round-trip-checklist.md)). Still
+not coverable with synthetic fixtures: embedded `.msg` and S/MIME, exercised
+only when a real sample is available.

@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- Class library hosting the whole web app (WebApp.Create): the server executable
+       (Docker, systemd) and the desktop launcher are thin entry points around it. -->
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,15 +10,9 @@
     <RootNamespace>Msg2Eml.Web</RootNamespace>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditLevel>moderate</NuGetAuditLevel>
-    <!-- No culture-specific formatting anywhere: invariant mode makes the self-contained
-         binaries independent of the system ICU library. -->
     <InvariantGlobalization>true</InvariantGlobalization>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <!-- self-contained single-file publish settings; the RID comes from the command line -->
-    <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
-    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <UserSecretsId>msg2eml-web</UserSecretsId>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +22,10 @@
   <ItemGroup>
     <!-- synthetic .msg used by the health check for a real micro-conversion -->
     <EmbeddedResource Include="Resources\health.msg" LogicalName="health.msg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Msg2Eml.Tests" />
   </ItemGroup>
 
 </Project>

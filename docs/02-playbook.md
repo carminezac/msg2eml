@@ -3,17 +3,26 @@
 Procedure to convert a `.msg` and measure its fidelity. To be run from the
 project root.
 
-## 0. Service (v0.1)
+## 0. Converting with the released binaries or the service
+
+For day-to-day conversions use the release binaries (see the README): the
+command line writes the `.eml` next to the input, the desktop binary opens a
+window.
+
+```bash
+msg2eml samples/<file>.msg -o out/
+```
+
+Through the service:
 
 ```bash
 docker compose up -d --build
 curl -f -o out/produced.eml -F "file=@samples/<file>.msg" http://localhost:8080/api/convert
 ```
 
-WebUI at `http://localhost:8080/`. The service and the CLI probe use the same
-logic: given the same input they produce the same EML. The following sections
-describe the probe, useful because it prints the fidelity report for the
-single file.
+All of them share the conversion core with the CLI probe described below:
+given the same input they produce the same EML. The probe remains useful
+because it prints the fidelity report for a single file.
 
 Tests and build without .NET on the host: `./tools/dev.sh test | build | up | down`.
 
