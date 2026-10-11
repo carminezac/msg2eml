@@ -44,10 +44,26 @@
 
     <footer>
         Limit @maxMb MB per file. No data is kept after conversion.
-        API: <code>POST /api/convert</code> (multipart, field <code>file</code>).
-        msg2eml @Program.AppVersion
+        @if (Options.Desktop)
+        {
+            <text>Running locally: closing this window stops the program.</text>
+        }
+        else
+        {
+            <text>API: <code>POST /api/convert</code> (multipart, field <code>file</code>).</text>
+        }
+        msg2eml @WebApp.Version
     </footer>
 
+@if (Options.Desktop)
+{
+    <script>
+        // Desktop mode: tell the local process this window is still open.
+        const beat = () => fetch('/api/heartbeat', { method: 'POST', keepalive: true }).catch(() => {});
+        beat();
+        setInterval(beat, 2000);
+    </script>
+}
     <script>
         const drop = document.getElementById('drop');
         const input = document.getElementById('file');

@@ -1,6 +1,6 @@
 # msg2eml — systemd unit for the self-contained Linux binary (no Docker, no .NET runtime).
 #
-#   sudo mkdir -p /opt/msg2eml && sudo tar -xzf msg2eml-<version>-linux-x64.tar.gz -C /opt/msg2eml --strip-components=1
+#   sudo mkdir -p /opt/msg2eml && sudo tar -xzf msg2eml-server-<version>-linux-x64.tar.gz -C /opt/msg2eml --strip-components=1
 #   sudo cp deploy/msg2eml.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now msg2eml
 #
@@ -14,7 +14,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/msg2eml
-ExecStart=/opt/msg2eml/Msg2Eml.Web --urls http://0.0.0.0:8080
+ExecStart=/opt/msg2eml/msg2eml-server --urls http://0.0.0.0:8080
 Restart=on-failure
 RestartSec=5
 

@@ -25,4 +25,13 @@ public sealed class Msg2EmlOptions
 
     /// <summary>Expose Prometheus metrics on <c>GET /metrics</c>.</summary>
     public bool MetricsEnabled { get; set; } = true;
+
+    /// <summary>Desktop mode: heartbeat endpoint and watchdog that exits when the window closes.</summary>
+    public bool Desktop { get; set; } = false;
+
+    /// <summary>Desktop mode: seconds without a heartbeat before exiting. 0 disables the watchdog.</summary>
+    public int DesktopIdleSeconds { get; set; } = 8;
+
+    /// <summary>Desktop mode: seconds to wait for the first heartbeat before giving up.</summary>
+    public int DesktopStartupGraceSeconds { get; set; } = 90;
 }

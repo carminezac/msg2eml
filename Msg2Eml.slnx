@@ -2,6 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/Msg2Eml.Core/Msg2Eml.Core.csproj" />
     <Project Path="src/Msg2Eml.Web/Msg2Eml.Web.csproj" />
+    <Project Path="src/Msg2Eml.Server/Msg2Eml.Server.csproj" />
+    <Project Path="src/Msg2Eml.Cli/Msg2Eml.Cli.csproj" />
+    <Project Path="src/Msg2Eml.Desktop/Msg2Eml.Desktop.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Msg2Eml.Tests/Msg2Eml.Tests.csproj" />

@@ -46,7 +46,7 @@ services:
     pids_limit: 256
 
     healthcheck:
-      test: ["CMD", "dotnet", "Msg2Eml.Web.dll", "--healthcheck"]
+      test: ["CMD", "dotnet", "msg2eml-server.dll", "--healthcheck"]
       interval: 30s
       timeout: 5s
       start_period: 15s

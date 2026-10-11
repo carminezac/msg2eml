@@ -61,19 +61,33 @@ the pipeline fails.
 
 ### Without Docker
 
-Every release on GitHub ships self-contained binaries for Linux (x64, arm64),
-Windows (x64) and macOS (x64, arm64): no .NET runtime to install. Unpack, then:
+Every release on GitHub ships self-contained binaries: no .NET runtime, no
+Docker, nothing to install. On Linux they need only glibc and libstdc++
+(`linux-musl` builds for Alpine).
 
-```bash
-./msg2eml/Msg2Eml.Web                               # http://localhost:8080, local only
-./msg2eml/Msg2Eml.Web --urls http://0.0.0.0:8080    # reachable from the LAN
-```
+- **msg2eml-desktop**: a window with the converter. Double-click it: the
+  program starts on `127.0.0.1` on a free port, opens the page in an
+  application window of the browser already on the machine (Edge, Chrome,
+  Chromium, Brave; default browser otherwise) and exits when the window is
+  closed. Nothing listens on the network, so Windows never asks to unblock the
+  firewall, and no fixed port can clash with other software.
+- **msg2eml-cli**: command line, for batches and scripts.
 
-Configuration is the same (`Msg2Eml__*` environment variables, or
+  ```bash
+  msg2eml mail.msg                   # writes mail.eml next to it
+  msg2eml inbox/ -r -o converted/    # every .msg under inbox/, recursively
+  msg2eml mail.msg --stdout | less   # EML on standard output
+  msg2eml --help                     # options, exit codes
+  ```
+
+- **msg2eml-server**: the web service for Linux hosts without Docker. Listens on
+  `http://localhost:8080`; add `--urls http://0.0.0.0:8080` to expose it on the
+  LAN. [`deploy/msg2eml.service`](deploy/msg2eml.service) is a hardened systemd
+  unit that mirrors the container settings.
+
+Configuration is the same everywhere (`Msg2Eml__*` environment variables, or
 `appsettings.json` next to the executable). Verify downloads with
-`sha256sum -c SHA256SUMS`. For Linux servers,
-[`deploy/msg2eml.service`](deploy/msg2eml.service) is a hardened systemd unit
-that mirrors the container settings.
+`sha256sum -c SHA256SUMS`.
 
 ### Observability
 
@@ -123,7 +137,7 @@ Requirements and policies: action plan, section 3.
 No .NET on the host: everything runs in the SDK image.
 
 ```bash
-./tools/dev.sh test        # 45 tests: core, limits, synthetic fixtures, golden, API, page
+./tools/dev.sh test        # 64 tests: core, fixtures, golden, API, CLI, desktop
 ./tools/dev.sh build       # msg2eml:local image
 ./tools/dev.sh up | down   # docker compose
 ```
@@ -161,8 +175,11 @@ Full procedure in [`docs/02-playbook.md`](docs/02-playbook.md).
 msg2eml/
 ├── src/
 │   ├── Msg2Eml.Core/             MsgConverter, errors, limits
-│   └── Msg2Eml.Web/              Minimal API, Razor Page, health check, metrics
-├── tests/Msg2Eml.Tests/          xunit: core, limits, synthetic fixtures, golden, API
+│   ├── Msg2Eml.Web/              Razor class library: WebApp, API, page, health check, metrics
+│   ├── Msg2Eml.Server/           server entry point (Docker, systemd)
+│   ├── Msg2Eml.Desktop/          window launcher: loopback port + browser app window
+│   └── Msg2Eml.Cli/              command-line converter
+├── tests/Msg2Eml.Tests/          xunit: core, fixtures, golden, API, CLI, desktop
 │   └── Fixtures/                 synthetic .msg files (generated, committed)
 ├── tools/
 │   ├── dev.sh                    test/build/up without .NET on the host

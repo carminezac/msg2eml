@@ -6,10 +6,11 @@ WORKDIR /src
 COPY Directory.Build.props .
 COPY src/Msg2Eml.Core/Msg2Eml.Core.csproj src/Msg2Eml.Core/
 COPY src/Msg2Eml.Web/Msg2Eml.Web.csproj  src/Msg2Eml.Web/
-RUN dotnet restore src/Msg2Eml.Web/Msg2Eml.Web.csproj
+COPY src/Msg2Eml.Server/Msg2Eml.Server.csproj src/Msg2Eml.Server/
+RUN dotnet restore src/Msg2Eml.Server/Msg2Eml.Server.csproj
 
 COPY src/ src/
-RUN dotnet publish src/Msg2Eml.Web/Msg2Eml.Web.csproj -c Release --no-restore -o /app
+RUN dotnet publish src/Msg2Eml.Server/Msg2Eml.Server.csproj -c Release --no-restore -o /app
 
 # ------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
@@ -24,6 +25,6 @@ USER $APP_UID
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD ["dotnet", "Msg2Eml.Web.dll", "--healthcheck"]
+  CMD ["dotnet", "msg2eml-server.dll", "--healthcheck"]
 
-ENTRYPOINT ["dotnet", "Msg2Eml.Web.dll"]
+ENTRYPOINT ["dotnet", "msg2eml-server.dll"]

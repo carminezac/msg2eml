@@ -82,14 +82,27 @@ jobs:
         run: |
           set -e
           mkdir -p dist
-          for RID in linux-x64 linux-arm64 win-x64 osx-x64 osx-arm64; do
-            OUT="dist/msg2eml-$VERSION-$RID"
-            dotnet publish src/Msg2Eml.Web/Msg2Eml.Web.csproj -c Release -r "$RID" -o "$OUT/msg2eml" --nologo -v q
-            case "$RID" in
-              win-*) (cd "$OUT" && zip -qr "../msg2eml-$VERSION-$RID.zip" msg2eml) ;;
-              *)     tar -czf "$OUT.tar.gz" -C "$OUT" msg2eml ;;
+          publish() {  # <project> <artifact-name> <rid>
+            OUT="dist/$2-$VERSION-$3"
+            dotnet publish "$1" -c Release -r "$3" -o "$OUT/$2" --nologo -v q
+            rm -f "$OUT/$2"/*.staticwebassets.endpoints.json
+            case "$3" in
+              win-*) (cd "$OUT" && zip -qr "../$2-$VERSION-$3.zip" "$2") ;;
+              *)     tar -czf "$OUT.tar.gz" -C "$OUT" "$2" ;;
             esac
             rm -rf "$OUT"
+          }
+          # command line: every platform, including musl (Alpine)
+          for RID in linux-x64 linux-arm64 linux-musl-x64 linux-musl-arm64 win-x64 win-arm64 osx-x64 osx-arm64; do
+            publish src/Msg2Eml.Cli/Msg2Eml.Cli.csproj msg2eml-cli "$RID"
+          done
+          # desktop window (loopback server + browser window): workstation platforms
+          for RID in win-x64 win-arm64 osx-x64 osx-arm64 linux-x64; do
+            publish src/Msg2Eml.Desktop/Msg2Eml.Desktop.csproj msg2eml-desktop "$RID"
+          done
+          # server without Docker: Linux hosts
+          for RID in linux-x64 linux-arm64; do
+            publish src/Msg2Eml.Server/Msg2Eml.Server.csproj msg2eml-server "$RID"
           done
           cp deploy/portainer-stack.yml deploy/portainer-stack.traefik.yml deploy/msg2eml.service dist/
           (cd dist && sha256sum * > SHA256SUMS)
@@ -98,17 +111,21 @@ jobs:
       - name: Release notes
         run: |
           {
+            echo "## Binaries (no .NET runtime, no Docker)"
+            echo
+            echo "- **msg2eml-desktop**: double-click, a window with the converter opens; nothing listens on the network (loopback only, random free port, no firewall prompt) and the program exits when the window is closed."
+            echo "- **msg2eml-cli**: command line, \`msg2eml file.msg\` or whole directories; see \`msg2eml --help\`."
+            echo "- **msg2eml-server**: the web service for Linux hosts without Docker; pair it with the attached systemd unit."
+            echo
+            echo "Linux builds need only glibc and libstdc++ (\`linux-musl\` builds for Alpine). Verify downloads with \`sha256sum -c SHA256SUMS\`."
+            echo
             echo "## Docker image"
             echo
             echo '```'
             echo "ghcr.io/${{ github.repository }}:$VERSION"
             echo '```'
             echo
-            echo "Multi-arch (linux/amd64, linux/arm64). Portainer stack files and a systemd unit are attached."
-            echo
-            echo "## Binaries"
-            echo
-            echo "Self-contained, no .NET runtime required. Unpack and run \`msg2eml/Msg2Eml.Web\` (listens on http://localhost:8080; add \`--urls http://0.0.0.0:8080\` to expose it). Verify with \`sha256sum -c SHA256SUMS\`."
+            echo "Multi-arch (linux/amd64, linux/arm64). Portainer stack files are attached."
             echo
           } > notes.md
 
@@ -116,6 +133,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # a re-pushed tag replaces its release instead of failing on "already exists"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release delete "$GITHUB_REF_NAME" --yes
+          fi
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "msg2eml $VERSION" \
             --notes-file notes.md \
