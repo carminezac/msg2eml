@@ -11,8 +11,10 @@ internal static class Fixtures
     {
         get
         {
+            // When the variable is set it is authoritative: a missing directory means "no corpus"
+            // (lets CI behaviour be reproduced locally with MSG2EML_SAMPLES=/nonexistent).
             var env = Environment.GetEnvironmentVariable("MSG2EML_SAMPLES");
-            if (!string.IsNullOrEmpty(env) && Directory.Exists(env)) return env;
+            if (!string.IsNullOrEmpty(env)) return Directory.Exists(env) ? env : null;
 
             var dir = AppContext.BaseDirectory;
             for (var i = 0; i < 8 && dir != null; i++)

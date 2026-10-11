@@ -21,7 +21,7 @@ sdk() {
     -e NUGET_PACKAGES=/nuget \
     -e DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     -e DOTNET_NOLOGO=1 \
-    -e MSG2EML_SAMPLES=/src/samples \
+    -e MSG2EML_SAMPLES="${MSG2EML_SAMPLES:-/src/samples}" \
     -v "$NUGET_CACHE":/nuget \
     -v "$ROOT_DIR":/src \
     -w /src \
